@@ -11,8 +11,9 @@ from sklearn.model_selection import train_test_split
 #from sklearn.svm import SVR
 import numpy as np
 from sklearn.externals import joblib
+import datetime
 
-def SVM_model(symbol,predict_window=1):
+def SVM_model(symbol,randomstate,predict_window=1):
     url = r'http://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine5m?symbol='+symbol
     res = urllib.request.urlopen(url)
     html = res.read().decode('utf-8')
@@ -112,7 +113,7 @@ def SVM_model(symbol,predict_window=1):
     x_maxsbs = pd.DataFrame(max_abs_scaler.fit_transform(temp.iloc[:,6:67]))
     x_maxsbs.columns=temp.columns[6:67]
     x_maxsbs['time']=temp['time']
-    x_maxsbs['pct_chg_shift']=(temp['pct_chg_shift']>0.1/100)*1+(temp['pct_chg_shift']<-0.1/100)*(-1)
+    x_maxsbs['pct_chg_shift']=(temp['pct_chg_shift']>0)*1+(temp['pct_chg_shift']<0)*(-1)
 
     temp_unscaled=temp.iloc[:,67:78]
     temp_unscaled['time'] = temp['time']
@@ -125,9 +126,15 @@ def SVM_model(symbol,predict_window=1):
 
     x_maxsbs=x_maxsbs.merge(x_scaled,on='time',how='left')
 
-    x_maxsbs.dropna(axis=0,inplace=True) ###########################未完待续
+    x_maxsbs.dropna(axis=0,inplace=True)
 
-    Xtrain, Xtest, Ytrain, Ytest =train_test_split(x_maxsbs.iloc[:,0:61], x_maxsbs.iloc[:,62],test_size=0.10, random_state=0)
+    label=x_maxsbs['pct_chg_shift']
+
+    x_maxsbs.drop(['time'],axis=1,inplace=True)
+
+    x_maxsbs.drop(['pct_chg_shift'],axis=1,inplace=True)
+
+    Xtrain, Xtest, Ytrain, Ytest =train_test_split(x_maxsbs, label,test_size=0.01, random_state=4)
 
     clf = svm.SVC(gamma=0.01, C=100.)
     clf.fit(Xtrain, Ytrain)
@@ -136,8 +143,12 @@ def SVM_model(symbol,predict_window=1):
     Ypred=pd.DataFrame(Ypred)
     Ytest=pd.DataFrame(Ytest)
     #IC=Ytest['pct_chg_shift'].corr(Ypred[0],method='spearman')
-    joblib.dump(clf, "SVM_model.m")
+
+    today=datetime.date.today().strftime("%Y%m%d")
+    joblib.dump(clf, symbol+"_"+today+"_model.m")
     return accuracy_score(Ytest, Ypred)
 
 
 #    clf = joblib.load("train_model.m")
+
+SVM_model('rb0',randomstate=2)
